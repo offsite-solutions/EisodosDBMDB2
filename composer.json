@@ -1,5 +1,5 @@
 {
-  "name": "offsite-solutions/eisodos-db-mdb2",
+  "name": "offsite-solutions/eisodos-db-connector-mdb2",
   "description": "Eisodos DB Connector - Pear MDB2",
   "type": "library",
   "authors": [
@@ -11,24 +11,21 @@
   "minimum-stability": "dev",
   "repositories": [
     {
-        "type": "path",
-        "url": "../../Base",
-        "options": {
-            "symlink": true
-        }
+      "type": "path",
+      "url": "../../Base",
+      "options": {
+        "symlink": true
+      }
     },
     {
-        "type": "path",
-        "url": "../../DBConnector",
-        "options": {
-            "symlink": true
-        }
+      "type": "pear",
+      "url": "https://pear.php.net"
     }
   ],
   "require": {
     "php": ">=7.2.0",
     "offsite-solutions/eisodos": "@dev",
-    "offsite-solutions/eisodos-db-connectors": "@dev"
+    "pear-pear.php.net/mdb2": "2.5.0-beta5@beta"
   },
   "require-dev": {
   },
