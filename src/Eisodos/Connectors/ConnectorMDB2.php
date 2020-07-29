@@ -2,6 +2,8 @@
   
   namespace Eisodos\Connectors;
   
+  require_once("MDB2.php");
+  
   use Eisodos\Eisodos;
   use Eisodos\Interfaces\DBConnectorInterface;
   use MDB2;
@@ -16,7 +18,7 @@
   class ConnectorMDB2 implements DBConnectorInterface {
     
     /** @var MDB2_Driver_Common null */
-    private $connection;
+    private MDB2_Driver_Common $connection;
     
     public function connected(): bool {
       return !($this->connection === NULL);
@@ -24,7 +26,7 @@
   
     /** @inheritDoc */
     public function connect($databaseConfigSection_ = 'Database', $connectParameters_ = [], $persistent_ = false): void {
-      if ($this->connection === NULL) {
+      if (!isset($this->connection)) {
         // loading connect string
         $databaseConfig = array_change_key_case(Eisodos::$configLoader->importConfigSection($databaseConfigSection_, '', false), CASE_LOWER);
         parse_str(Eisodos::$utils->safe_array_value($databaseConfig, "options", ""), $databaseOptions);
@@ -35,7 +37,7 @@
           Eisodos::$parameterHandler->setParam("DBError", $this->connection->getMessage() . "\n" .
             $this->connection->getUserInfo() . "\n" .
             $this->connection->getDebugInfo());
-          $this->connection = NULL;
+          unset($this->connection);
           throw new RuntimeException("Database Open Error!");
         }
         
@@ -55,14 +57,14 @@
     
     /** @inheritDoc */
     public function disconnect($force_ = false): void {
-      if ($this->connection === NULL) {
+      if (isset($this->connection)) {
         $this->connection->disconnect($force_);
       }
     }
     
     /** @inheritDoc */
     public function startTransaction($savePoint_ = NULL): void {
-      if ($this->connection === NULL) {
+      if (!isset($this->connection)) {
         throw new RuntimeException("Database not connected");
       }
       $this->connection->beginTransaction($savePoint_);
@@ -70,7 +72,7 @@
     
     /** @inheritDoc */
     public function commit($savePoint_ = NULL): void {
-      if ($this->connection === NULL) {
+      if (!isset($this->connection)) {
         throw new RuntimeException("Database not connected");
       }
       $this->connection->commit($savePoint_);
@@ -78,7 +80,7 @@
     
     /** @inheritDoc */
     public function rollback($savePoint_ = NULL): void {
-      if ($this->connection === NULL) {
+      if (!isset($this->connection)) {
         throw new RuntimeException("Database not connected");
       }
       $this->connection->rollback($savePoint_);
@@ -86,7 +88,7 @@
     
     /** @inheritDoc */
     public function inTransaction(): bool {
-      if ($this->connection === NULL) {
+      if (!isset($this->connection)) {
         throw new RuntimeException("Database not connected");
       }
       
@@ -94,6 +96,9 @@
     }
     
     public function executeDML($SQL_, $throwException_ = true) {
+      if (!isset($this->connection)) {
+        throw new RuntimeException("Database not connected");
+      }
       $resultSet = $this->connection->exec($SQL_);
       if (PEAR::isError($resultSet)) {
         if ($throwException_) {
@@ -107,6 +112,9 @@
     }
     
     public function executePreparedDML($SQL_, $dataTypes_ = [], $data_ = [], $throwException_=true) {
+      if (!isset($this->connection)) {
+        throw new RuntimeException("Database not connected");
+      }
       $sth = $this->connection->prepare($SQL_, $dataTypes_, MDB2_PREPARE_MANIP);
       if (PEAR::isError($sth)) {
         if ($throwException_) {
@@ -144,7 +152,7 @@
       $exceptionMessage_ = ''
     ) {
       
-      if ($this->connection === NULL) {
+      if (!isset($this->connection)) {
         throw new RuntimeException("Database not connected");
       }
       
