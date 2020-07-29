@@ -24,7 +24,10 @@
       return !($this->connection === NULL);
     }
   
-    /** @inheritDoc */
+    /**
+     * @inheritDoc
+     * throws RuntimeException
+    */
     public function connect($databaseConfigSection_ = 'Database', $connectParameters_ = [], $persistent_ = false): void {
       if (!isset($this->connection)) {
         // loading connect string
