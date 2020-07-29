@@ -18,6 +18,10 @@
     /** @var MDB2_Driver_Common null */
     private $connection;
     
+    public function connected(): bool {
+      return !($this->connection === NULL);
+    }
+  
     /** @inheritDoc */
     public function connect($databaseConfigSection_ = 'Database', $connectParameters_ = [], $persistent_ = false): void {
       if ($this->connection === NULL) {
@@ -155,6 +159,10 @@
         
         return false;
         
+      }
+      
+      if ($resultTransformation_ === RT_RAW) {
+        return $resultSet;
       }
       
       if ($resultTransformation_ === RT_FIRST_ROW) {
