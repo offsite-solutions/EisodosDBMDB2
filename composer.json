@@ -24,8 +24,7 @@
   ],
   "require": {
     "php": ">=7.2.0",
-    "offsite-solutions/eisodos": "@dev",
-    "pear/mdb2": "2.5.0-beta5@beta"
+    "offsite-solutions/eisodos": "@dev"
   },
   "require-dev": {
   },
