@@ -3,14 +3,14 @@
   namespace Eisodos\Connectors;
   
   require_once("MDB2.php");
-  
+
   use Eisodos\Eisodos;
   use Eisodos\Interfaces\DBConnectorInterface;
   use MDB2;
   use MDB2_Driver_Common;
   use PEAR;
   use RuntimeException;
-  
+
   /**
    * Eisodos MDB2 Connector class
    *
@@ -23,11 +23,11 @@
     public function connected(): bool {
       return !($this->connection === NULL);
     }
-  
+    
     /**
      * @inheritDoc
      * throws RuntimeException
-    */
+     */
     public function connect($databaseConfigSection_ = 'Database', $connectParameters_ = [], $persistent_ = false): void {
       if (!isset($this->connection)) {
         // loading connect string
@@ -50,7 +50,7 @@
           $a = explode(';', $connectSQL);
           foreach ($a as $sql) {
             if ($sql !== '') {
-              $this->query($sql, RT_FIRST_ROW_FIRST_COLUMN);
+              $this->query(RT_FIRST_ROW_FIRST_COLUMN, $sql);
             }
           }
         }
@@ -59,100 +59,8 @@
     }
     
     /** @inheritDoc */
-    public function disconnect($force_ = false): void {
-      if (isset($this->connection)) {
-        $this->connection->disconnect($force_);
-      }
-    }
-    
-    /** @inheritDoc */
-    public function startTransaction($savePoint_ = NULL): void {
-      if (!isset($this->connection)) {
-        throw new RuntimeException("Database not connected");
-      }
-      $this->connection->beginTransaction($savePoint_);
-    }
-    
-    /** @inheritDoc */
-    public function commit($savePoint_ = NULL): void {
-      if (!isset($this->connection)) {
-        throw new RuntimeException("Database not connected");
-      }
-      $this->connection->commit($savePoint_);
-    }
-    
-    /** @inheritDoc */
-    public function rollback($savePoint_ = NULL): void {
-      if (!isset($this->connection)) {
-        throw new RuntimeException("Database not connected");
-      }
-      $this->connection->rollback($savePoint_);
-    }
-    
-    /** @inheritDoc */
-    public function inTransaction(): bool {
-      if (!isset($this->connection)) {
-        throw new RuntimeException("Database not connected");
-      }
-      
-      return $this->connection->inTransaction();
-    }
-    
-    public function executeDML($SQL_, $throwException_ = true) {
-      if (!isset($this->connection)) {
-        throw new RuntimeException("Database not connected");
-      }
-      $resultSet = $this->connection->exec($SQL_);
-      if (PEAR::isError($resultSet)) {
-        if ($throwException_) {
-          $_POST["__EISODOS_extendedError"] = $resultSet->getUserInfo();
-          throw new RuntimeException($resultSet->getMessage());
-        }
-        return $resultSet->getMessage();
-      }
-      
-      return "";
-    }
-    
-    public function executePreparedDML($SQL_, $dataTypes_ = [], $data_ = [], $throwException_=true) {
-      if (!isset($this->connection)) {
-        throw new RuntimeException("Database not connected");
-      }
-      $sth = $this->connection->prepare($SQL_, $dataTypes_, MDB2_PREPARE_MANIP);
-      if (PEAR::isError($sth)) {
-        if ($throwException_) {
-          $_POST["__EISODOS_extendedError"] = $sth->getUserInfo();
-          throw new RuntimeException($sth->getMessage());
-        }
-  
-        return $sth->getMessage();
-      }
-  
-      $resultSet =& $sth->execute($data_);
-      if (PEAR::isError($resultSet)) {
-        if ($throwException_) {
-          $_POST["__EISODOS_extendedError"] = $resultSet->getUserInfo();
-          throw new RuntimeException($resultSet->getMessage());
-        }
-  
-        return $sth->getMessage();
-      }
-      
-      $resultSet->free();
-  
-      return "";
-    }
-    
-    public function executeStoredProcedure($procedureName_, $bindVariables_ = [], $variableTypes_ = []) {
-    }
-    
-    /** @inheritDoc */
     public function query(
-      $SQL_,
-      $resultTransformation_,
-      &$queryResult_ = NULL,
-      $getOptions_ = [],
-      $exceptionMessage_ = ''
+      $resultTransformation_, $SQL_, &$queryResult_ = NULL, $getOptions_ = [], $exceptionMessage_ = ''
     ) {
       
       if (!isset($this->connection)) {
@@ -257,10 +165,159 @@
       
     }
     
+    /** @inheritDoc */
+    public function disconnect($force_ = false): void {
+      if (isset($this->connection)) {
+        $this->connection->disconnect($force_);
+      }
+    }
+    
+    /** @inheritDoc */
+    public function startTransaction($savePoint_ = NULL): void {
+      if (!isset($this->connection)) {
+        throw new RuntimeException("Database not connected");
+      }
+      $this->connection->beginTransaction($savePoint_);
+    }
+    
+    /** @inheritDoc */
+    public function commit($savePoint_ = NULL): void {
+      if (!isset($this->connection)) {
+        throw new RuntimeException("Database not connected");
+      }
+      $this->connection->commit($savePoint_);
+    }
+    
+    /** @inheritDoc */
+    public function rollback($savePoint_ = NULL): void {
+      if (!isset($this->connection)) {
+        throw new RuntimeException("Database not connected");
+      }
+      $this->connection->rollback($savePoint_);
+    }
+    
+    /** @inheritDoc */
+    public function inTransaction(): bool {
+      if (!isset($this->connection)) {
+        throw new RuntimeException("Database not connected");
+      }
+      
+      return $this->connection->inTransaction();
+    }
+    
+    public function executeDML($SQL_, $throwException_ = true) {
+      if (!isset($this->connection)) {
+        throw new RuntimeException("Database not connected");
+      }
+      $resultSet = $this->connection->exec($SQL_);
+      if (PEAR::isError($resultSet)) {
+        if ($throwException_) {
+          $_POST["__EISODOS_extendedError"] = $resultSet->getUserInfo();
+          throw new RuntimeException($resultSet->getMessage());
+        }
+        
+        return $resultSet->getMessage();
+      }
+      
+      return "";
+    }
+    
+    public function executePreparedDML($SQL_, $dataTypes_ = [], $data_ = [], $throwException_ = true) {
+      if (!isset($this->connection)) {
+        throw new RuntimeException("Database not connected");
+      }
+      $sth = $this->connection->prepare($SQL_, $dataTypes_, MDB2_PREPARE_MANIP);
+      if (PEAR::isError($sth)) {
+        if ($throwException_) {
+          $_POST["__EISODOS_extendedError"] = $sth->getUserInfo();
+          throw new RuntimeException($sth->getMessage());
+        }
+        
+        return $sth->getMessage();
+      }
+      
+      $resultSet =& $sth->execute($data_);
+      if (PEAR::isError($resultSet)) {
+        if ($throwException_) {
+          $_POST["__EISODOS_extendedError"] = $resultSet->getUserInfo();
+          throw new RuntimeException($resultSet->getMessage());
+        }
+        
+        return $sth->getMessage();
+      }
+      
+      $resultSet->free();
+      
+      return "";
+    }
+    
+    public function executeStoredProcedure($procedureName_, $bindVariables_ = [], $variableTypes_ = []) {
+    }
+    
     /**
      * @inheritDoc
      */
     public function getConnection() {
       return $this->connection;
     }
+    
+    /**
+     * @inheritDoc
+     */
+    public function nullStr($value_, $isString_ = true, $maxLength_ = 0, $exception_ = "", $withComma_ = false) {
+      $this->emptySQLField($value_, $isString_, $maxLength_, $exception_, $withComma_, "NULL");
+    }
+    
+    /**
+     * @inheritDoc
+     */
+    public function emptySQLField($value_, $isString_ = true, $maxLength_ = 0, $exception_ = "", $withComma_ = false, $keyword_ = "NULL") {
+      if (strlen($value_) == 0) {
+        if ($withComma_) return "NULL, "; else return "NULL";
+      }
+      if ($isString_) {
+        if ($maxLength_ > 0 and mb_strlen($value_, 'UTF-8') > $maxLength_) {
+          if ($exception_) {
+            throw new RuntimeException($exception_);
+          }
+          
+          $value_ = substr($value_, 0, $maxLength_);
+        }
+        $result = "'" . Eisodos::$utils->replace_all($value_, "'", "''") . "'";
+        // special cases
+        //   sqlsrv - add N as prefix to N'abcd'
+        if ($this->connection->dbsyntax === 'sqlsrv') {
+          $result = 'N' . $result;
+        }
+      } else {
+        $result = $value_;
+      }
+      if ($withComma_) {
+        $result .= ", ";
+      }
+      
+      return $result;
+    }
+    
+    /**
+     * @inheritDoc
+     */
+    public function defaultStr($value_, $isString_ = true, $maxLength_ = 0, $exception_ = "", $withComma_ = false) {
+      $this->emptySQLField($value_, $isString_, $maxLength_, $exception_, $withComma_, "DEFAULT");
+    }
+    
+    /**
+     * @inheritDoc
+     */
+    public function nullStrParam($parameterName_, $isString_ = true, $maxLength_ = 0, $exception_ = "", $withComma_ = false) {
+      $this->emptySQLField(Eisodos::$parameterHandler->getParam($parameterName_), $isString_, $maxLength_, $exception_, $withComma_, "NULL");
+    }
+    
+    /**
+     * @inheritDoc
+     */
+    public function defaultStrParam($parameterName_, $isString_ = true, $maxLength_ = 0, $exception_ = "", $withComma_ = false) {
+      $this->emptySQLField(Eisodos::$parameterHandler->getParam($parameterName_), $isString_, $maxLength_, $exception_, $withComma_, "DEFAULT");
+    }
+    
   }
