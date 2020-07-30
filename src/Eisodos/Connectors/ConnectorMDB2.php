@@ -3,14 +3,14 @@
   namespace Eisodos\Connectors;
   
   require_once("MDB2.php");
-
+  
   use Eisodos\Eisodos;
   use Eisodos\Interfaces\DBConnectorInterface;
   use MDB2;
   use MDB2_Driver_Common;
   use PEAR;
   use RuntimeException;
-
+  
   /**
    * Eisodos MDB2 Connector class
    *
@@ -20,7 +20,11 @@
     /** @var MDB2_Driver_Common null */
     private MDB2_Driver_Common $connection;
     
-    private $lastQueryColumnNames;
+    /** @var array */
+    private $lastQueryColumnNames = [];
+    
+    /** @var array */
+    private $lastQueryTotalRows = 0;
     
     public function connected(): bool {
       return !($this->connection === NULL);
@@ -47,7 +51,7 @@
           throw new RuntimeException("Database Open Error!");
         }
         
-        $this->connection=$connection;
+        $this->connection = $connection;
         
         Eisodos::$logger->trace("Database connected - " . $this->connection->connected_database_name);
         
@@ -68,6 +72,9 @@
       $resultTransformation_, $SQL_, &$queryResult_ = NULL, $getOptions_ = [], $exceptionMessage_ = ''
     ) {
       
+      $this->lastQueryColumnNames = [];
+      $this->lastQueryTotalRows = 0;
+      
       if (!isset($this->connection)) {
         throw new RuntimeException("Database not connected");
       }
@@ -85,10 +92,21 @@
         
       }
       
-      $this->lastQueryColumnNames=$resultSet->getColumnNames();
+      $this->lastQueryColumnNames = $resultSet->getColumnNames();
+      $this->lastQueryTotalRows = $resultSet->numRows();
       
       if ($resultTransformation_ === RT_RAW) {
-        return $resultSet;
+        $rows = $resultSet->fetchAll(MDB2_FETCHMODE_ASSOC);
+        if (!$rows) {
+          $resultSet->free();
+          
+          return false;
+        }
+        
+        $queryResult_ = $rows;
+        $resultSet->free();
+        
+        return true;
       }
       
       if ($resultTransformation_ === RT_FIRST_ROW) {
@@ -157,7 +175,9 @@
           }
         } else if ($resultTransformation_ === RT_ALL_ROWS_ASSOC) {
           $indexFieldName = Eisodos::$utils->safe_array_value($getOptions_, 'indexFieldName', false);
-          if (!$indexFieldName) throw new RuntimeException("Index field name is mandatory on RT_ALL_ROWS_ASSOC result type");
+          if (!$indexFieldName) {
+            throw new RuntimeException("Index field name is mandatory on RT_ALL_ROWS_ASSOC result type");
+          }
           while (($row = $resultSet->fetchRow(MDB2_FETCHMODE_ASSOC))) {
             $queryResult_[$row[$indexFieldName]] = $row;
           }
@@ -175,6 +195,11 @@
     /** @inheritDoc */
     public function getLastQueryColumns() {
       return $this->lastQueryColumnNames;
+    }
+    
+    /** @inheritDoc */
+    public function getLastQueryTotalRows() {
+      return $this->lastQueryTotalRows;
     }
     
     /** @inheritDoc */
@@ -214,7 +239,8 @@
         throw new RuntimeException("Database not connected");
       }
       
-      $inTransaction=$this->connection->inTransaction();
+      $inTransaction = $this->connection->inTransaction();
+      
       return ($inTransaction ?? false);
     }
     
@@ -264,7 +290,78 @@
       return "";
     }
     
-    public function executeStoredProcedure($procedureName_, $bindVariables_ = [], $variableTypes_ = []) {
+    /** @inheritDoc */
+    public function storedProcedureBind(&$bindVariables_, $variableName_, $dataType_, $value_, $inOut_ = 'IN') {
+      $bindVariables_[$variableName_] = array();
+      if ($dataType_ === "clob" && $value_ === '') // Empty CLOB bug / invalid LOB locator specified, force type to text
+      {
+        $bindVariables_[$variableName_]["type"] = "text";
+      } else {
+        $bindVariables_[$variableName_]["type"] = $dataType_;
+      }
+      $bindVariables_[$variableName_]["value"] = $value_;
+      $bindVariables_[$variableName_]["mode_"] = $inOut_;
+    }
+    
+    /** @inheritDoc */
+    public function storedProcedureBindParam(&$bindVariables_, $parameterName_, $dataType_) {
+      $this->storedProcedureBind($bindVariables_, $parameterName_, $dataType_, Eisodos::$parameterHandler->getParam($parameterName_));
+    }
+    
+    /** @inheritDoc */
+    public function executeStoredProcedure($procedureName_, $bindVariables_, &$resultArray_, $throwException_ = true, $case_ = CASE_UPPER) {
+      if (!isset($this->connection)) {
+        throw new RuntimeException("Database not connected");
+      }
+      
+      $sql = "";
+      if ($this->connection->dbsyntax === 'oci8') {
+        foreach ($bindVariables_ as $parameterName => $parameterProperties)
+          $sql .= ($sql ? "," : "") . $parameterName . " => :" . $parameterName;
+        $sql = "begin " . $procedureName_ . "(" . $sql . "); end; ";
+      } else if ($this->connection->dbsyntax === 'pgsql') {
+        foreach ($bindVariables_ as $parameterName => $parameterProperties) {
+          if ($parameterProperties["mode_"] !== "OUT") // skip OUT parameters
+            $sql .= ($sql ? "," : "") . $parameterName . " => :" . $parameterName;
+        }
+        $sql = "select * from " . $procedureName_ . "(" . $sql . ")";
+      }
+      
+      $sth = $this->connection->prepare($sql);
+      if (PEAR::isError($sth)) {
+        if ($throwException_) {
+          $_POST["__EISODOS_extendedError"] = $sth->getUserInfo();
+          throw new RuntimeException($sth->getMessage());
+        }
+        
+        return $sth->getMessage();
+      }
+      
+      foreach ($bindVariables_ as $paramName => $parameterProperties) {
+        $resultArray_[$paramName] = $parameterProperties["value"];
+        $sth->bindParam($paramName,
+          $resultArray_[$paramName],
+          $parameterProperties["type"],
+          (($parameterProperties["type"] === "integer" || $parameterProperties["type"] === "text") ? (32766 / 2) : -1)
+        );
+      }
+      $rs =& $sth->execute();
+      if (PEAR::isError($rs)) {
+        $_POST["__udSCGI_extendedError"] = $rs->getUserInfo() . "\nBinded variables: " . print_r($bindVariables_, true);
+        $sth->free();
+        throw new RuntimeException($rs->getMessage());
+      }
+      
+      if ($this->connection->dbsyntax === 'pgsql') {
+        $result = $rs->fetchRow(MDB2_FETCHMODE_ASSOC);
+        if (is_array($result)) {
+          $resultArray_ = array_merge($resultArray_, array_change_key_case($result, $case_));
+        }
+      }
+      $rs->free();
+      $sth->free();
+      
+      return "";
     }
     
     /**
