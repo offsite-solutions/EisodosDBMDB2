@@ -20,6 +20,8 @@
     /** @var MDB2_Driver_Common null */
     private MDB2_Driver_Common $connection;
     
+    private $lastQueryColumnNames;
+    
     public function connected(): bool {
       return !($this->connection === NULL);
     }
@@ -33,16 +35,19 @@
         // loading connect string
         $databaseConfig = array_change_key_case(Eisodos::$configLoader->importConfigSection($databaseConfigSection_, '', false), CASE_LOWER);
         parse_str(Eisodos::$utils->safe_array_value($databaseConfig, "options", ""), $databaseOptions);
-        $this->connection = MDB2::connect($databaseConfig["login"], $databaseOptions);
+        $connection = MDB2::connect($databaseConfig["login"], $databaseOptions);
         
-        if (PEAR::isError($this->connection)) {
-          Eisodos::$logger->writeErrorLog(NULL, $this->connection->getMessage());
-          Eisodos::$parameterHandler->setParam("DBError", $this->connection->getMessage() . "\n" .
-            $this->connection->getUserInfo() . "\n" .
-            $this->connection->getDebugInfo());
-          unset($this->connection);
+        if (PEAR::isError($connection)) {
+          Eisodos::$logger->writeErrorLog(NULL, $connection->getMessage() . "\n" .
+            $connection->getUserInfo() . "\n" .
+            $connection->getDebugInfo());
+          Eisodos::$parameterHandler->setParam("DBError", $connection->getMessage() . "\n" .
+            $connection->getUserInfo() . "\n" .
+            $connection->getDebugInfo());
           throw new RuntimeException("Database Open Error!");
         }
+        
+        $this->connection=$connection;
         
         Eisodos::$logger->trace("Database connected - " . $this->connection->connected_database_name);
         
@@ -79,6 +84,8 @@
         return false;
         
       }
+      
+      $this->lastQueryColumnNames=$resultSet->getColumnNames();
       
       if ($resultTransformation_ === RT_RAW) {
         return $resultSet;
@@ -166,6 +173,11 @@
     }
     
     /** @inheritDoc */
+    public function getLastQueryColumns() {
+      return $this->lastQueryColumnNames;
+    }
+    
+    /** @inheritDoc */
     public function disconnect($force_ = false): void {
       if (isset($this->connection)) {
         $this->connection->disconnect($force_);
@@ -202,7 +214,8 @@
         throw new RuntimeException("Database not connected");
       }
       
-      return $this->connection->inTransaction();
+      $inTransaction=$this->connection->inTransaction();
+      return ($inTransaction ?? false);
     }
     
     public function executeDML($SQL_, $throwException_ = true) {
@@ -265,7 +278,7 @@
      * @inheritDoc
      */
     public function nullStr($value_, $isString_ = true, $maxLength_ = 0, $exception_ = "", $withComma_ = false) {
-      $this->emptySQLField($value_, $isString_, $maxLength_, $exception_, $withComma_, "NULL");
+      return $this->emptySQLField($value_, $isString_, $maxLength_, $exception_, $withComma_, "NULL");
     }
     
     /**
@@ -303,21 +316,21 @@
      * @inheritDoc
      */
     public function defaultStr($value_, $isString_ = true, $maxLength_ = 0, $exception_ = "", $withComma_ = false) {
-      $this->emptySQLField($value_, $isString_, $maxLength_, $exception_, $withComma_, "DEFAULT");
+      return $this->emptySQLField($value_, $isString_, $maxLength_, $exception_, $withComma_, "DEFAULT");
     }
     
     /**
      * @inheritDoc
      */
     public function nullStrParam($parameterName_, $isString_ = true, $maxLength_ = 0, $exception_ = "", $withComma_ = false) {
-      $this->emptySQLField(Eisodos::$parameterHandler->getParam($parameterName_), $isString_, $maxLength_, $exception_, $withComma_, "NULL");
+      return $this->emptySQLField(Eisodos::$parameterHandler->getParam($parameterName_), $isString_, $maxLength_, $exception_, $withComma_, "NULL");
     }
     
     /**
      * @inheritDoc
      */
     public function defaultStrParam($parameterName_, $isString_ = true, $maxLength_ = 0, $exception_ = "", $withComma_ = false) {
-      $this->emptySQLField(Eisodos::$parameterHandler->getParam($parameterName_), $isString_, $maxLength_, $exception_, $withComma_, "DEFAULT");
+      return $this->emptySQLField(Eisodos::$parameterHandler->getParam($parameterName_), $isString_, $maxLength_, $exception_, $withComma_, "DEFAULT");
     }
     
   }
