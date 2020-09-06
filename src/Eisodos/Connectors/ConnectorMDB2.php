@@ -27,7 +27,7 @@
     private $lastQueryTotalRows = 0;
     
     public function connected(): bool {
-      return !($this->connection === NULL);
+      return (isset($this->connection) && !($this->connection === NULL));
     }
     
     /**
@@ -248,17 +248,17 @@
       if (!isset($this->connection)) {
         throw new RuntimeException("Database not connected");
       }
-      $resultSet = $this->connection->exec($SQL_);
-      if (PEAR::isError($resultSet)) {
+      $affectedRows = $this->connection->exec($SQL_);
+      if (PEAR::isError($affectedRows)) {
         if ($throwException_) {
-          $_POST["__EISODOS_extendedError"] = $resultSet->getUserInfo();
-          throw new RuntimeException($resultSet->getMessage());
+          $_POST["__EISODOS_extendedError"] = $affectedRows->getUserInfo();
+          throw new RuntimeException($affectedRows->getMessage());
         }
         
-        return $resultSet->getMessage();
+        return 0;
       }
       
-      return "";
+      return $affectedRows;
     }
     
     public function executePreparedDML($SQL_, $dataTypes_ = [], $data_ = [], $throwException_ = true) {
@@ -275,19 +275,19 @@
         return $sth->getMessage();
       }
       
-      $resultSet =& $sth->execute($data_);
-      if (PEAR::isError($resultSet)) {
+      $affectedRows = $sth->execute($data_);
+      if (PEAR::isError($affectedRows)) {
         if ($throwException_) {
-          $_POST["__EISODOS_extendedError"] = $resultSet->getUserInfo();
-          throw new RuntimeException($resultSet->getMessage());
+          $_POST["__EISODOS_extendedError"] = $affectedRows->getUserInfo();
+          throw new RuntimeException($affectedRows->getMessage());
         }
         
-        return $sth->getMessage();
+        return 0;
       }
       
-      $resultSet->free();
+      $sth->free();
       
-      return "";
+      return $affectedRows;
     }
     
     /** @inheritDoc */
