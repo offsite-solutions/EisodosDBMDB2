@@ -1,4 +1,4 @@
-<?php
+<?php /** @noinspection DuplicatedCode SpellCheckingInspection PhpUnusedFunctionInspection NotOptimalIfConditionsInspection */
   
   namespace Eisodos\Connectors;
   
@@ -69,7 +69,7 @@
     
     /** @inheritDoc */
     public function query(
-      $resultTransformation_, $SQL_, &$queryResult_ = NULL, $getOptions_ = [], $exceptionMessage_ = ''
+      int $resultTransformation_, string $SQL_, &$queryResult_ = NULL, $getOptions_ = [], $exceptionMessage_ = ''
     ) {
       
       $this->lastQueryColumnNames = [];
@@ -193,12 +193,12 @@
     }
     
     /** @inheritDoc */
-    public function getLastQueryColumns() {
+    public function getLastQueryColumns(): array {
       return $this->lastQueryColumnNames;
     }
     
     /** @inheritDoc */
-    public function getLastQueryTotalRows() {
+    public function getLastQueryTotalRows(): int {
       return $this->lastQueryTotalRows;
     }
     
@@ -243,8 +243,8 @@
       
       return ($inTransaction ?? false);
     }
-    
-    public function executeDML($SQL_, $throwException_ = true) {
+  
+    public function executeDML(string $SQL_, $throwException_ = true): int {
       if (!isset($this->connection)) {
         throw new RuntimeException("Database not connected");
       }
@@ -260,8 +260,8 @@
       
       return $affectedRows;
     }
-    
-    public function executePreparedDML($SQL_, $dataTypes_ = [], $data_ = [], $throwException_ = true) {
+  
+    public function executePreparedDML(string $SQL_, $dataTypes_ = [], $data_ = [], $throwException_ = true): int {
       if (!isset($this->connection)) {
         throw new RuntimeException("Database not connected");
       }
@@ -291,7 +291,7 @@
     }
     
     /** @inheritDoc */
-    public function storedProcedureBind(&$bindVariables_, $variableName_, $dataType_, $value_, $inOut_ = 'IN') {
+    public function storedProcedureBind(array &$bindVariables_, string $variableName_, string $dataType_, string $value_, $inOut_ = 'IN') {
       $bindVariables_[$variableName_] = array();
       if ($dataType_ === "clob" && $value_ === '') // Empty CLOB bug / invalid LOB locator specified, force type to text
       {
@@ -304,16 +304,16 @@
     }
     
     /** @inheritDoc */
-    public function storedProcedureBindParam(&$bindVariables_, $parameterName_, $dataType_) {
+    public function storedProcedureBindParam(array &$bindVariables_, string $parameterName_, string $dataType_) {
       $this->storedProcedureBind($bindVariables_, $parameterName_, $dataType_, Eisodos::$parameterHandler->getParam($parameterName_));
     }
     
     /** @inheritDoc */
-    public function executeStoredProcedure($procedureName_, $bindVariables_, &$resultArray_, $throwException_ = true, $case_ = CASE_UPPER) {
+    public function executeStoredProcedure(string $procedureName_, array $bindVariables_, array &$resultArray_, $throwException_ = true, $case_ = CASE_UPPER): string {
       if (!isset($this->connection)) {
         throw new RuntimeException("Database not connected");
       }
-      
+    
       $sql = "";
       if ($this->connection->dbsyntax === 'oci8') {
         foreach ($bindVariables_ as $parameterName => $parameterProperties)
@@ -374,14 +374,14 @@
     /**
      * @inheritDoc
      */
-    public function nullStr($value_, $isString_ = true, $maxLength_ = 0, $exception_ = "", $withComma_ = false) {
+    public function nullStr($value_, $isString_ = true, $maxLength_ = 0, $exception_ = "", $withComma_ = false): string {
       return $this->emptySQLField($value_, $isString_, $maxLength_, $exception_, $withComma_, "NULL");
     }
     
     /**
      * @inheritDoc
      */
-    public function emptySQLField($value_, $isString_ = true, $maxLength_ = 0, $exception_ = "", $withComma_ = false, $keyword_ = "NULL") {
+    public function emptySQLField($value_, $isString_ = true, $maxLength_ = 0, $exception_ = "", $withComma_ = false, $keyword_ = "NULL"): string {
       if (strlen($value_) == 0) {
         if ($withComma_) return "NULL, "; else return "NULL";
       }
@@ -390,7 +390,7 @@
           if ($exception_) {
             throw new RuntimeException($exception_);
           }
-          
+        
           $value_ = substr($value_, 0, $maxLength_);
         }
         $result = "'" . Eisodos::$utils->replace_all($value_, "'", "''") . "'";
@@ -412,21 +412,21 @@
     /**
      * @inheritDoc
      */
-    public function defaultStr($value_, $isString_ = true, $maxLength_ = 0, $exception_ = "", $withComma_ = false) {
+    public function defaultStr($value_, $isString_ = true, $maxLength_ = 0, $exception_ = "", $withComma_ = false): string {
       return $this->emptySQLField($value_, $isString_, $maxLength_, $exception_, $withComma_, "DEFAULT");
     }
     
     /**
      * @inheritDoc
      */
-    public function nullStrParam($parameterName_, $isString_ = true, $maxLength_ = 0, $exception_ = "", $withComma_ = false) {
+    public function nullStrParam(string $parameterName_, $isString_ = true, $maxLength_ = 0, $exception_ = "", $withComma_ = false): string {
       return $this->emptySQLField(Eisodos::$parameterHandler->getParam($parameterName_), $isString_, $maxLength_, $exception_, $withComma_, "NULL");
     }
     
     /**
      * @inheritDoc
      */
-    public function defaultStrParam($parameterName_, $isString_ = true, $maxLength_ = 0, $exception_ = "", $withComma_ = false) {
+    public function defaultStrParam(string $parameterName_, $isString_ = true, $maxLength_ = 0, $exception_ = "", $withComma_ = false): string {
       return $this->emptySQLField(Eisodos::$parameterHandler->getParam($parameterName_), $isString_, $maxLength_, $exception_, $withComma_, "DEFAULT");
     }
     
