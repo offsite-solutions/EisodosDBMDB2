@@ -23,7 +23,7 @@
     /** @var array */
     private $lastQueryColumnNames = [];
     
-    /** @var array */
+    /** @var int */
     private $lastQueryTotalRows = 0;
     
     public function connected(): bool {
@@ -218,11 +218,11 @@
     }
     
     /** @inheritDoc */
-    public function commit($savePoint_ = NULL): void {
+    public function commit(): void {
       if (!isset($this->connection)) {
         throw new RuntimeException("Database not connected");
       }
-      $this->connection->commit($savePoint_);
+      $this->connection->commit();
     }
     
     /** @inheritDoc */
@@ -291,36 +291,36 @@
     }
     
     /** @inheritDoc */
-    public function storedProcedureBind(array &$bindVariables_, string $variableName_, string $dataType_, string $value_, $inOut_ = 'IN') {
-      $bindVariables_[$variableName_] = array();
+    public function bind(array &$boundVariables_, string $variableName_, string $dataType_, string $value_, $inOut_ = 'IN') {
+      $boundVariables_[$variableName_] = array();
       if ($dataType_ === "clob" && $value_ === '') // Empty CLOB bug / invalid LOB locator specified, force type to text
       {
-        $bindVariables_[$variableName_]["type"] = "text";
+        $boundVariables_[$variableName_]["type"] = "text";
       } else {
-        $bindVariables_[$variableName_]["type"] = $dataType_;
+        $boundVariables_[$variableName_]["type"] = $dataType_;
       }
-      $bindVariables_[$variableName_]["value"] = $value_;
-      $bindVariables_[$variableName_]["mode_"] = $inOut_;
+      $boundVariables_[$variableName_]["value"] = $value_;
+      $boundVariables_[$variableName_]["mode_"] = $inOut_;
     }
     
     /** @inheritDoc */
-    public function storedProcedureBindParam(array &$bindVariables_, string $parameterName_, string $dataType_) {
-      $this->storedProcedureBind($bindVariables_, $parameterName_, $dataType_, Eisodos::$parameterHandler->getParam($parameterName_));
+    public function bindParam(array &$boundVariables_, string $parameterName_, string $dataType_) {
+      $this->bind($boundVariables_, $parameterName_, $dataType_, Eisodos::$parameterHandler->getParam($parameterName_));
     }
     
     /** @inheritDoc */
-    public function executeStoredProcedure(string $procedureName_, array $bindVariables_, array &$resultArray_, $throwException_ = true, $case_ = CASE_UPPER): string {
+    public function executeStoredProcedure(string $procedureName_, array $inputVariables_, array &$resultVariables_, $throwException_ = true, $case_ = CASE_UPPER): bool {
       if (!isset($this->connection)) {
         throw new RuntimeException("Database not connected");
       }
     
       $sql = "";
       if ($this->connection->dbsyntax === 'oci8') {
-        foreach ($bindVariables_ as $parameterName => $parameterProperties)
+        foreach ($inputVariables_ as $parameterName => $parameterProperties)
           $sql .= ($sql ? "," : "") . $parameterName . " => :" . $parameterName;
         $sql = "begin " . $procedureName_ . "(" . $sql . "); end; ";
       } else if ($this->connection->dbsyntax === 'pgsql') {
-        foreach ($bindVariables_ as $parameterName => $parameterProperties) {
+        foreach ($inputVariables_ as $parameterName => $parameterProperties) {
           if ($parameterProperties["mode_"] !== "OUT") // skip OUT parameters
             $sql .= ($sql ? "," : "") . $parameterName . " => :" . $parameterName;
         }
@@ -334,20 +334,20 @@
           throw new RuntimeException($sth->getMessage());
         }
         
-        return $sth->getMessage();
+        return false;
       }
       
-      foreach ($bindVariables_ as $paramName => $parameterProperties) {
-        $resultArray_[$paramName] = $parameterProperties["value"];
+      foreach ($inputVariables_ as $paramName => $parameterProperties) {
+        $resultVariables_[$paramName] = $parameterProperties["value"];
         $sth->bindParam($paramName,
-          $resultArray_[$paramName],
+          $resultVariables_[$paramName],
           $parameterProperties["type"],
           (($parameterProperties["type"] === "integer" || $parameterProperties["type"] === "text") ? (32766 / 2) : -1)
         );
       }
       $rs =& $sth->execute();
       if (PEAR::isError($rs)) {
-        $_POST["__udSCGI_extendedError"] = $rs->getUserInfo() . "\nBinded variables: " . print_r($bindVariables_, true);
+        $_POST["__udSCGI_extendedError"] = $rs->getUserInfo() . "\nBinded variables: " . print_r($inputVariables_, true);
         $sth->free();
         throw new RuntimeException($rs->getMessage());
       }
@@ -355,13 +355,13 @@
       if ($this->connection->dbsyntax === 'pgsql') {
         $result = $rs->fetchRow(MDB2_FETCHMODE_ASSOC);
         if (is_array($result)) {
-          $resultArray_ = array_merge($resultArray_, array_change_key_case($result, $case_));
+          $resultVariables_ = array_merge($resultVariables_, array_change_key_case($result, $case_));
         }
       }
       $rs->free();
       $sth->free();
       
-      return "";
+      return true;
     }
     
     /**
@@ -382,11 +382,15 @@
      * @inheritDoc
      */
     public function emptySQLField($value_, $isString_ = true, $maxLength_ = 0, $exception_ = "", $withComma_ = false, $keyword_ = "NULL"): string {
-      if (strlen($value_) == 0) {
-        if ($withComma_) return "NULL, "; else return "NULL";
+      if ($value_ === '') {
+        if ($withComma_) {
+          return "NULL, ";
+        }
+        
+        return "NULL";
       }
       if ($isString_) {
-        if ($maxLength_ > 0 and mb_strlen($value_, 'UTF-8') > $maxLength_) {
+        if ($maxLength_ > 0 && mb_strlen($value_, 'UTF-8') > $maxLength_) {
           if ($exception_) {
             throw new RuntimeException($exception_);
           }
@@ -394,11 +398,6 @@
           $value_ = substr($value_, 0, $maxLength_);
         }
         $result = "'" . Eisodos::$utils->replace_all($value_, "'", "''") . "'";
-        // special cases
-        //   sqlsrv - add N as prefix to N'abcd'
-        if ($this->connection->dbsyntax === 'sqlsrv') {
-          $result = 'N' . $result;
-        }
       } else {
         $result = $value_;
       }

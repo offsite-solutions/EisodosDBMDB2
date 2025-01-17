@@ -18,13 +18,18 @@
       }
     },
     {
+      "type": "composer",
+      "url": "https://plugins.roundcube.net"
+    },
+    {
       "type": "pear",
       "url": "https://pear.php.net"
     }
   ],
   "require": {
     "php": ">=7.2.0",
-    "offsite-solutions/eisodos": "@dev"
+    "offsite-solutions/eisodos": "@dev",
+    "pear/mdb2": "2.5.0-beta5@beta"
   },
   "require-dev": {
   },
